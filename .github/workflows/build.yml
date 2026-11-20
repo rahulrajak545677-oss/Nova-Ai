@@ -8,8 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Unzip project
-        run: unzip -q nova-ai-android.zip
+      - name: Find project (zip or files)
+        run: |
+          Z=$(find . -iname '*.zip' -not -path './.git/*' | head -1)
+          if [ -n "$Z" ]; then echo "Unzipping $Z"; unzip -q -o "$Z" -d unzipped_project; fi
+          CFG=$(find . -name capacitor.config.json -not -path '*/node_modules/*' -not -path '*/android/*' | head -1)
+          if [ -z "$CFG" ]; then echo "Project not found. Files in repo:"; find . -not -path './.git/*' | head -50; exit 1; fi
+          echo "APP_DIR=$(dirname "$CFG")" >> $GITHUB_ENV
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -18,16 +23,16 @@ jobs:
           distribution: temurin
           java-version: 21
       - name: Install and set up
-        working-directory: nova-ai-android
+        working-directory: ${{ env.APP_DIR }}
         run: |
           npm install
           node setup.js
       - name: Build debug APK
-        working-directory: nova-ai-android/android
+        working-directory: ${{ env.APP_DIR }}/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: nova-ai-debug-apk
-          path: nova-ai-android/android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
